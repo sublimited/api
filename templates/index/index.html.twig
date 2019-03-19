@@ -1,0 +1,162 @@
+{# templates/index/index.html.twig #}
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+    <style>
+    table {
+        font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+        font-size:14px;
+    }
+
+    table td, table th {
+        border: 1px solid #ddd;
+        padding: 8px;
+    }
+
+    table tr:nth-child(even){background-color: #f2f2f2;}
+
+    table tr:hover {background-color: #ddd;}
+
+    table th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: #777;
+        color: white;
+    }
+    </style>
+  </head>
+  <body>
+    <div id="content">
+      <div id="msg"></div>
+          <p><label for="api_key"><input id="api_key" type="text" name="api_key" placeholder="api key"> <a href="javascript:;" class="load_data">load data</a></p>
+
+            <div id="gen"></div>
+
+            <form id="form">
+              <p><label>name</label><input type="text" name="name" value="" placeholder="name"></p><p><label>issn</label><input type="text" name="issn" value="" palceholder="issn"></p><p><label>status</label><input type="text" name="status" value="" placeholder="status"></p>
+              <a href="javascript:;" class="save" data-id="">create</a>
+            </form>
+
+    </div>
+  </body>
+  <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+  <script>
+    $(function(){
+      var _html,_data;
+      $("body").on("click",".record",function(){
+        _data = $(this).data("rec");
+
+        $("form#form").html('<p><label>name</label><input type="text" name="name" value="'+_data.name+'"></p><p><label>issn</label><input type="text" name="issn" value="'+_data.issn+'"></p><p><label>status</label><input type="text" name="status" value="'+_data.status+'"></p><a href="javascript:;" class="save" data-id="'+_data.id+'">save</a> | <a href="javascript:;" class="delete" data-id="'+_data.id+'">delete</a>');
+
+      });
+
+
+      $("a.load_data").on('click',function(){
+        $("div#gen").html("");
+        if($("#api_key").val().length!=37)
+        {
+          $("div#msg").html("invalid api key");
+        }
+        else
+        {
+          api_endpoint($("#api_key").val(),[],'GET','/api/products/');
+        }
+      });
+
+
+      // save / insert
+      $("body").on("click",".save",function(){
+        _data = {"name":$("input[name='name']").val(),"status":$("input[name='status']").val(),"issn":$("input[name='issn']").val()};
+
+
+        if($(this).data('id'))
+        {
+          console.log('gonna update');
+          api_endpoint($("#api_key").val(),_data,'PUT','/api/products/'+$(this).data('id')+'/');
+        }
+        else
+        {
+          console.log('gonna insert');
+          api_endpoint($("#api_key").val(),_data,'POST','/api/products/');
+        }
+
+      });
+
+      // delete
+      $("body").on("click",".delete",function(){
+        api_endpoint($("#api_key").val(),[],'DELETE','/api/products/'+$(this).data('id')+'/');
+      });
+    });
+
+    function api_endpoint(api,data,method,endpoint)
+    {
+      var _html;
+      $("div#msg").html("");
+      $.ajax({
+          url: endpoint,
+          type: method,
+          data: JSON.stringify(data),
+          dataType: "json",
+          contentType: "application/json",
+          headers: {
+            "Authorization":api
+          },
+          success: function(m){
+            if(m.success==1)
+            {
+              var _id = endpoint.replace(/[^0-9]/g, "");
+              switch(method)
+              {
+                case "GET":
+                if(endpoint=='/api/products/')
+                {
+                  _html='<table class="t"><thead><tr><th>id</th><th>name</th><th>status</th><th>created at</th><th>updated at</th></thead><tbody>';
+                    $(m.data).each(function(i,v){
+                        _html+='<tr data-id="'+v.id+'"><td><a href="javascript:;" class="record" data-rec=\''+JSON.stringify(v)+'\' data-id="'+v.id+'">'+v.id+'</a></td> <td>'+v.name+'</td> <td>'+v.status+'</td> <td>'+v.created_at+'</td> <td>'+v.updated_at+'</td></tr>';
+                    });
+                    _html+='</tbody></table>';
+
+                    $("div#gen").html(_html);
+                }
+                break;
+
+                case "POST":
+                  if(endpoint=="/api/products/")
+                  {
+                    console.log(m);
+                    $(m.data).each(function(i,v){
+                      $('table tr:last').after('<tr data-id="'+v.id+'"><td><a href="javascript:;" class="record" data-rec=\''+JSON.stringify(v)+'\' data-id="'+v.id+'">'+v.id+'</a></td> <td>'+v.name+'</td> <td>'+v.status+'</td> <td>'+v.created_at+'</td> <td>'+v.updated_at+'</td></tr>');
+                    });
+                  }
+                break;
+
+                case "PUT":
+                  $("tr").find("[data-id='"+_id+"']").parent().parent().remove();
+                  $('table tr:last').after('<tr data-id="'+_id+'"><td><a href="javascript:;" class="record" data-rec=\''+JSON.stringify(data)+'\' data-id="'+_id+'">'+_id+'</a></td> <td>'+data.name+'</td> <td>'+data.status+'</td> <td>'+m.data.created_at+'</td> <td>'+m.data.updated_at+'</td></tr>');
+                break;
+
+                case "DELETE":
+                  $("tr").find("[data-id='"+_id+"']").parent().parent().remove();
+                  $("form#form").html("");
+                break;
+              }
+
+            }
+            else
+            {
+              $("div#msg").html(m.errors.join(', '));
+            }
+          },
+          error: function(e)
+          {
+            $("div#msg").html(e.responseJSON.errors.join(','));
+          }
+      });
+    }
+  </script>
+</html>
